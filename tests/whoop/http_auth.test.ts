@@ -1,7 +1,8 @@
 // Verifies the HTTP transport boots, rejects unauthenticated requests, and
 // accepts authenticated ones. Doesn't exercise the full MCP protocol — just
-// the auth gate, the health probe, and the route shape.
+// the auth gate, the health probe, the route shape, and session routing.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
 import { startHttpServer } from "../../src/server-http.js";
 import type { WhoopClient } from "../../src/whoop/client.js";
 
@@ -121,7 +122,7 @@ describe("HTTP transport: session lifecycle", () => {
         jsonrpc: "2.0",
         id: 1,
         method: "initialize",
-        params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } },
+        params: { protocolVersion: LATEST_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "test", version: "0" } },
       }),
     });
     expect(init.status).toBe(200);
@@ -136,10 +137,7 @@ describe("HTTP transport: session lifecycle", () => {
     expect(list.status).toBe(200);
   });
 
-  // Sessions are dropped by the idle sweep and on restart. The MCP spec says a
-  // request carrying an id the server no longer holds gets 404, which is the
-  // client's signal to re-initialize. 400 "Server not initialized" is treated
-  // as fatal by clients (claude.ai connectors), so the connector stays broken.
+  // Ids are dropped by the idle sweep and on restart; see mcpHandler for why 404.
   it("answers 404 Session not found for an unknown session id", async () => {
     const r = await fetch(`${base}/mcp`, {
       method: "POST",
