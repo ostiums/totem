@@ -98,3 +98,57 @@ describe("HTTP transport: misconfiguration", () => {
     ).rejects.toThrow(/16 chars/);
   });
 });
+
+describe("HTTP transport: session lifecycle", () => {
+  const port = PORT + 3;
+  const base = `http://127.0.0.1:${port}`;
+  const headers = {
+    authorization: `Bearer ${TOKEN}`,
+    "content-type": "application/json",
+    accept: "application/json, text/event-stream",
+  };
+
+  beforeAll(async () => {
+    await startHttpServer(stubClient, { authToken: TOKEN, port, host: "127.0.0.1" });
+    await new Promise((r) => setTimeout(r, 50));
+  });
+
+  it("issues a session id on initialize and accepts it on follow-up calls", async () => {
+    const init = await fetch(`${base}/mcp`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } },
+      }),
+    });
+    expect(init.status).toBe(200);
+    const sid = init.headers.get("mcp-session-id");
+    expect(sid).toBeTruthy();
+
+    const list = await fetch(`${base}/mcp`, {
+      method: "POST",
+      headers: { ...headers, "mcp-session-id": sid! },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
+    });
+    expect(list.status).toBe(200);
+  });
+
+  // Sessions are dropped by the idle sweep and on restart. The MCP spec says a
+  // request carrying an id the server no longer holds gets 404, which is the
+  // client's signal to re-initialize. 400 "Server not initialized" is treated
+  // as fatal by clients (claude.ai connectors), so the connector stays broken.
+  it("answers 404 Session not found for an unknown session id", async () => {
+    const r = await fetch(`${base}/mcp`, {
+      method: "POST",
+      headers: { ...headers, "mcp-session-id": "00000000-0000-0000-0000-000000000000" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+    expect(r.status).toBe(404);
+    const body = (await r.json()) as { error: { code: number; message: string } };
+    expect(body.error.code).toBe(-32001);
+    expect(body.error.message).toMatch(/session not found/i);
+  });
+});
