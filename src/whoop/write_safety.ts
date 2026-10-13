@@ -32,13 +32,14 @@ export function withPreview<T extends z.ZodTypeAny>(receipt: T) {
 }
 
 /** Tool result for a write WHOOP refused: status + its reason, never the raw body. */
-export function writeRejected(what: string, path: string, error: WhoopApiError) {
+export function writeRejected(what: string, path: string, error: WhoopApiError, hint?: string) {
   return {
     content: [{ type: "text" as const, text: jsonOut({
       error: `WHOOP rejected the ${what}.`,
       status: error.status,
       endpoint: path,
       reason: apiErrorDetail(error.body) ?? null,
+      ...(hint ? { hint } : {}),
     }) }],
     isError: true as const,
   };

@@ -1,5 +1,6 @@
 import type { BodyMeasurementsOutT } from "../schemas/body.js";
 import { asArray, asNumber, asString, isObject } from "../lib/walk.js";
+import { fatFractionToPercent, round } from "../lib/format.js";
 
 // GET /progression-service/v3/trends/WEIGHT/readings (BODY_COMPOSITION/readings
 // returns the same records): sections.records[] is one entry per month, each
@@ -8,14 +9,6 @@ import { asArray, asNumber, asString, isObject } from "../lib/walk.js";
 // body_fat_percent is a fraction on the wire (0.185 = 18.5%).
 
 export const BODY_READINGS_PATH = "/progression-service/v3/trends/WEIGHT/readings";
-
-const round = (n: number, digits: number): number => Number(n.toFixed(digits));
-
-/** Wire fraction (0.185) → percentage for people (18.5). */
-export const fatFractionToPercent = (fraction: number): number => round(fraction * 100, 1);
-
-/** Percentage (18.5) → wire fraction (0.185). */
-export const fatPercentToFraction = (percent: number): number => round(percent / 100, 4);
 
 export function projectBodyMeasurements(raw: unknown): BodyMeasurementsOutT {
   const sections = isObject(raw) && isObject(raw.sections) ? raw.sections : {};

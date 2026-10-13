@@ -2,14 +2,15 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WhoopClient } from "../../whoop/client.js";
 import { BodyMeasurementLogOut } from "../../schemas/body.js";
-import { BODY_READINGS_PATH, fatFractionToPercent, fatPercentToFraction } from "../../projections/body_measurements.js";
+import { BODY_READINGS_PATH } from "../../projections/body_measurements.js";
 import { preview, writeRejected } from "../../whoop/write_safety.js";
 import { WhoopApiError, WhoopProjectionError } from "../../whoop/errors.js";
 import { jsonOut } from "../../whoop/json_out.js";
 import { jodaTimestamp } from "../../lib/dates.js";
+import { fatFractionToPercent, fatPercentToFraction, round } from "../../lib/format.js";
 import { toLocalIso } from "../../lib/timezone.js";
 
-export interface MeasurementInput {
+interface MeasurementInput {
   timestamp: string;
   weight_kg: number;
   /** Percentage, e.g. 18.5. */
@@ -18,7 +19,7 @@ export interface MeasurementInput {
 }
 
 /** The app's ManualMeasurementRequestBody, snake_cased on the wire. */
-export interface MeasurementBody {
+interface MeasurementBody {
   timestamp: string;
   weight_kg: number;
   /** Fraction, e.g. 0.185 — the unit WHOOP stores and returns. */
@@ -37,13 +38,13 @@ export function buildMeasurementBody(input: MeasurementInput): MeasurementBody {
   if (givenLean !== undefined && givenLean >= weight) {
     throw new Error(`Lean body mass (${givenLean} kg) must be below body weight (${weight} kg).`);
   }
-  const leanFromFat = fatPct === undefined ? undefined : Number((weight * (1 - fatPct / 100)).toFixed(2));
+  const leanFromFat = fatPct === undefined ? undefined : round(weight * (1 - fatPct / 100), 2);
   if (leanFromFat !== undefined && givenLean !== undefined && Math.abs(leanFromFat - givenLean) > 0.5) {
     throw new Error(`Body fat ${fatPct}% and lean mass ${givenLean} kg disagree for ${weight} kg (expected lean ≈ ${leanFromFat} kg). Pass one of them.`);
   }
   const lean = givenLean ?? leanFromFat ?? null;
   const fat = fatPct !== undefined ? fatPercentToFraction(fatPct)
-    : lean !== null ? fatPercentToFraction((1 - lean / weight) * 100)
+    : lean !== null ? round(1 - lean / weight, 4)
     : null;
   return { timestamp, weight_kg: weight, body_fat_percent: fat, lean_body_mass_kg: lean };
 }
@@ -51,7 +52,7 @@ export function buildMeasurementBody(input: MeasurementInput): MeasurementBody {
 export function registerBodyMeasurementLog(server: McpServer, client: WhoopClient): void {
   server.tool(
     "whoop_body_measurement_log",
-    "WRITE: add a weight reading to the Weight and Lean Body Mass trends, optionally with body fat % or lean body mass kg (the other is derived from weight). Kilograms only — convert pounds first. This is the trend reading the app's ADD MANUAL MEASUREMENT saves; the profile weight used for calorie math is separate (whoop_profile_update). The app keeps one reading per day, so a reading on a day that already has one may replace it — check whoop_body_measurements first. Preview unless confirm:true.",
+    "WRITE: add a reading to the Weight and Lean Body Mass trends — weight, plus body fat % or lean body mass (other derived). Kilograms only. Separate from the profile weight (whoop_profile_update). The app keeps one reading per day, so a same-day reading may be replaced — check whoop_body_measurements first. Preview unless confirm:true.",
     {
       weight_kg: z.number().positive().describe("Body weight in kilograms."),
       lean_body_mass_kg: z.number().positive().optional().describe("Lean body mass in kilograms."),
@@ -63,7 +64,7 @@ export function registerBodyMeasurementLog(server: McpServer, client: WhoopClien
       let body: MeasurementBody;
       try {
         body = buildMeasurementBody({
-          // The app sends local wall-clock time; toLocalIso leaves offset forms as given.
+          // The app sends local wall-clock time with its offset; toLocalIso leaves non-UTC input as given.
           timestamp: toLocalIso(timestamp ?? new Date().toISOString()),
           weight_kg,
           lean_body_mass_kg,
@@ -83,7 +84,7 @@ export function registerBodyMeasurementLog(server: McpServer, client: WhoopClien
       }
       try {
         const out = BodyMeasurementLogOut.parse({
-          logged: true as const,
+          logged: true,
           timestamp: body.timestamp,
           weight_kg: body.weight_kg,
           body_fat_percent: body.body_fat_percent === null ? null : fatFractionToPercent(body.body_fat_percent),

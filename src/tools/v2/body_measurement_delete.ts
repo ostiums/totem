@@ -26,7 +26,7 @@ export function registerBodyMeasurementDelete(server: McpServer, client: WhoopCl
         if (error instanceof WhoopApiError) return writeRejected("deletion", path, error);
         throw error;
       }
-      const out = BodyMeasurementDeleteOut.parse({ deleted: true as const, reading_id });
+      const out = BodyMeasurementDeleteOut.parse({ deleted: true, reading_id });
       return { content: [{ type: "text", text: jsonOut(out) }] };
     },
   );

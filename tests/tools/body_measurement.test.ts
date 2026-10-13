@@ -9,8 +9,8 @@ import { WhoopApiError } from "../../src/whoop/errors.js";
 import { buildMeasurementBody, registerBodyMeasurementLog } from "../../src/tools/v2/body_measurement_log.js";
 import { registerBodyMeasurementDelete } from "../../src/tools/v2/body_measurement_delete.js";
 import { registerBodyMeasurements } from "../../src/tools/v2/body_measurements.js";
+import { BODY_READINGS_PATH as PATH } from "../../src/projections/body_measurements.js";
 
-const PATH = "/progression-service/v3/trends/WEIGHT/readings";
 const closers: Array<() => Promise<void>> = [];
 const previousTimezone = process.env.WHOOP_TIMEZONE;
 

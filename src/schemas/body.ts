@@ -16,13 +16,9 @@ export const BodyMeasurementsOut = z.object({
 });
 export type BodyMeasurementsOutT = z.infer<typeof BodyMeasurementsOut>;
 
-export const BodyMeasurementLogOut = withPreview(z.object({
-  logged: z.literal(true),
-  timestamp: IsoDateTime,
-  weight_kg: z.number(),
-  body_fat_percent: z.number().nullable(),
-  lean_body_mass_kg: z.number().nullable(),
-}));
+export const BodyMeasurementLogOut = withPreview(
+  BodyReading.omit({ id: true, source: true }).extend({ logged: z.literal(true) }),
+);
 
 export const BodyMeasurementDeleteOut = withPreview(z.object({
   deleted: z.literal(true),
