@@ -1,21 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WhoopClient } from "../../src/whoop/client.js";
-import {
-  buildMeasurementBody,
-  jodaTimestamp,
-  projectReadings,
-  registerBodyMeasurementLog,
-  registerBodyMeasurementDelete,
-  registerBodyMeasurements,
-} from "../../src/tools/v2/body_measurement.js";
+import { WhoopApiError } from "../../src/whoop/errors.js";
+import { buildMeasurementBody, registerBodyMeasurementLog } from "../../src/tools/v2/body_measurement_log.js";
+import { registerBodyMeasurementDelete } from "../../src/tools/v2/body_measurement_delete.js";
+import { registerBodyMeasurements } from "../../src/tools/v2/body_measurements.js";
 
+const PATH = "/progression-service/v3/trends/WEIGHT/readings";
 const closers: Array<() => Promise<void>> = [];
+const previousTimezone = process.env.WHOOP_TIMEZONE;
 
 afterEach(async () => {
   await Promise.all(closers.splice(0).map((close) => close()));
+  if (previousTimezone === undefined) delete process.env.WHOOP_TIMEZONE;
+  else process.env.WHOOP_TIMEZONE = previousTimezone;
 });
 
 async function connect(register: (server: McpServer) => void): Promise<Client> {
@@ -33,17 +35,6 @@ function json(result: Awaited<ReturnType<Client["callTool"]>>): Record<string, u
   const content = result.content as Array<{ type: string; text: string }>;
   return JSON.parse(content[0]!.text) as Record<string, unknown>;
 }
-
-describe("jodaTimestamp", () => {
-  it("keeps the wall clock and offset in the app's yyyy-MM-dd'T'HH:mm:ss.SSSZ form", () => {
-    expect(jodaTimestamp("2026-10-13T09:30:00+03:00")).toBe("2026-10-13T09:30:00.000+0300");
-    expect(jodaTimestamp("2026-10-13T09:30:00.25-07:00")).toBe("2026-10-13T09:30:00.250-0700");
-  });
-
-  it("renders UTC as +0000", () => {
-    expect(jodaTimestamp("2026-10-13T06:30:00Z")).toBe("2026-10-13T06:30:00.000+0000");
-  });
-});
 
 describe("buildMeasurementBody", () => {
   const ts = "2026-10-13T09:30:00+03:00";
@@ -78,69 +69,7 @@ describe("buildMeasurementBody", () => {
   });
 });
 
-const READINGS = {
-  sections: {
-    records: [
-      {
-        title: "Oct 2026",
-        measurements: [
-          {
-            type: "MEASUREMENT_BOX",
-            content: {
-              id: "reading-1",
-              weight: 80.69999694824219,
-              source: "apple_health_kit",
-              weight_details_screen: {
-                timestamp: "2026-10-04T11:10:00.000+03:00",
-                weight_kg: 80.69999694824219,
-                body_fat_percent: 0.18500000236350522,
-                lean_body_mass_kg: 65.77050018310547,
-                source: "apple_health_kit",
-              },
-            },
-          },
-        ],
-      },
-      {
-        title: "Aug 2026",
-        measurements: [
-          {
-            type: "MEASUREMENT_BOX",
-            content: {
-              id: "reading-2",
-              weight: 77,
-              source: "manual",
-              weight_details_screen: {
-                timestamp: "2026-08-01T09:27:14.000+03:00",
-                weight_kg: 77,
-                body_fat_percent: null,
-                lean_body_mass_kg: null,
-                source: "manual",
-              },
-            },
-          },
-        ],
-      },
-    ],
-    next_token: null,
-  },
-};
-
-describe("projectReadings", () => {
-  it("flattens month sections into readings with body fat as a rounded percentage", () => {
-    expect(projectReadings(READINGS)).toEqual([
-      { id: "reading-1", timestamp: "2026-10-04T11:10:00.000+03:00", weight_kg: 80.7, body_fat_percent: 18.5, lean_body_mass_kg: 65.77, source: "apple_health_kit" },
-      { id: "reading-2", timestamp: "2026-08-01T09:27:14.000+03:00", weight_kg: 77, body_fat_percent: null, lean_body_mass_kg: null, source: "manual" },
-    ]);
-  });
-
-  it("returns an empty list when the shape is absent", () => {
-    expect(projectReadings({})).toEqual([]);
-    expect(projectReadings(null)).toEqual([]);
-  });
-});
-
-describe("body measurement tools through MCP", () => {
+describe("whoop_body_measurement_log", () => {
   it("previews without posting, then posts the app's body on confirm", async () => {
     const post = vi.fn().mockResolvedValue(undefined);
     const whoop = { post } as unknown as WhoopClient;
@@ -153,13 +82,27 @@ describe("body measurement tools through MCP", () => {
 
     const result = await client.callTool({ name: "whoop_body_measurement_log", arguments: { ...args, confirm: true } });
     expect(result.isError).toBeFalsy();
-    expect(post).toHaveBeenCalledWith("/progression-service/v3/trends/WEIGHT/readings", {
+    expect(post).toHaveBeenCalledWith(PATH, {
       timestamp: "2026-10-13T09:30:00.000+0300",
       weight_kg: 80,
       body_fat_percent: expect.closeTo(0.2, 10),
       lean_body_mass_kg: 64,
     });
     expect(json(result)).toMatchObject({ logged: true, weight_kg: 80, lean_body_mass_kg: 64, body_fat_percent: 20 });
+  });
+
+  it("sends a UTC timestamp in the member's local offset, as the app does", async () => {
+    process.env.WHOOP_TIMEZONE = "Europe/Moscow";
+    const post = vi.fn().mockResolvedValue(undefined);
+    const whoop = { post } as unknown as WhoopClient;
+    const client = await connect((server) => registerBodyMeasurementLog(server, whoop));
+
+    const preview = json(await client.callTool({
+      name: "whoop_body_measurement_log",
+      arguments: { timestamp: "2026-10-13T06:30:00Z", weight_kg: 80 },
+    }));
+    expect((preview.will_execute as { body_summary: { timestamp: string } }).body_summary.timestamp)
+      .toBe("2026-10-13T09:30:00.000+0300");
   });
 
   it("returns a tool error instead of posting an impossible composition", async () => {
@@ -173,16 +116,21 @@ describe("body measurement tools through MCP", () => {
     expect(result.isError).toBe(true);
     expect(post).not.toHaveBeenCalled();
   });
+});
 
+describe("whoop_body_measurements", () => {
   it("lists readings from the WEIGHT readings endpoint", async () => {
-    const get = vi.fn().mockResolvedValue(READINGS);
+    const raw = JSON.parse(readFileSync(resolve("tests/fixtures", "body_readings.json"), "utf8")) as unknown;
+    const get = vi.fn().mockResolvedValue(raw);
     const whoop = { get } as unknown as WhoopClient;
     const client = await connect((server) => registerBodyMeasurements(server, whoop));
     const result = json(await client.callTool({ name: "whoop_body_measurements", arguments: {} }));
-    expect(get).toHaveBeenCalledWith("/progression-service/v3/trends/WEIGHT/readings");
+    expect(get).toHaveBeenCalledWith(PATH);
     expect((result.readings as unknown[]).length).toBe(2);
   });
+});
 
+describe("whoop_body_measurement_delete", () => {
   it("deletes a reading by id only on confirm", async () => {
     const del = vi.fn().mockResolvedValue(undefined);
     const whoop = { delete: del } as unknown as WhoopClient;
@@ -192,7 +140,17 @@ describe("body measurement tools through MCP", () => {
     expect(del).not.toHaveBeenCalled();
 
     const result = json(await client.callTool({ name: "whoop_body_measurement_delete", arguments: { reading_id: "reading-1", confirm: true } }));
-    expect(del).toHaveBeenCalledWith("/progression-service/v3/trends/WEIGHT/readings/reading-1");
+    expect(del).toHaveBeenCalledWith(`${PATH}/reading-1`);
     expect(result).toEqual({ deleted: true, reading_id: "reading-1" });
+  });
+
+  it("turns a WHOOP rejection into a structured tool error", async () => {
+    const del = vi.fn().mockRejectedValue(new WhoopApiError(404, `${PATH}/missing`, '{"message":"not found"}'));
+    const whoop = { delete: del } as unknown as WhoopClient;
+    const client = await connect((server) => registerBodyMeasurementDelete(server, whoop));
+
+    const result = await client.callTool({ name: "whoop_body_measurement_delete", arguments: { reading_id: "missing", confirm: true } });
+    expect(result.isError).toBe(true);
+    expect(json(result)).toMatchObject({ status: 404, reason: "not found" });
   });
 });

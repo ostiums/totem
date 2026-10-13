@@ -97,17 +97,17 @@ Side-by-side comparison of two date windows across recovery / sleep performance 
 
 ### Weight + body composition (1 read + 2 write)
 
-The readings behind Trends → Weight / Lean Body Mass. Endpoints and body shape come from the Android app's `TrendsApi` (5.472.0): `POST` adds, `PUT /{id}` updates, `DELETE /{id}` removes. The app sends `timestamp` in Joda's `yyyy-MM-dd'T'HH:mm:ss.SSSZ` form (`2026-10-13T09:30:00.000+0300`) and stores body fat as a fraction (`0.185`). This is separate from the profile weight that `whoop_profile_update` sets.
+The readings behind Trends → Weight / Lean Body Mass. Endpoints and body shape come from the Android app's `TrendsApi` (5.472.0): `POST` adds and `DELETE /{id}` removes; the app's `PUT /{id}` update is not wrapped (delete and re-log instead). The app sends `timestamp` in Joda's `yyyy-MM-dd'T'HH:mm:ss.SSSZ` form (`2026-10-13T09:30:00.000+0300`) and stores body fat as a fraction (`0.185`). This is separate from the profile weight that `whoop_profile_update` sets.
 
 #### `whoop_body_measurements`
 Every recorded weight / body-composition reading, from any source (manual, Apple Health, Withings).
 
 - **Input:** `{}`
 - **Source:** `GET /progression-service/v3/trends/WEIGHT/readings` (`BODY_COMPOSITION/readings` returns the same records)
-- **Output:** `{readings: [{id, timestamp, weight_kg, body_fat_percent, lean_body_mass_kg, source}]}` — `body_fat_percent` as a percentage (`18.5`)
+- **Output:** `{readings: [{id, timestamp, weight_kg, body_fat_percent, lean_body_mass_kg, source}], next_token}` — `body_fat_percent` as a percentage (`18.5`); a non-null `next_token` means older readings exist (`/readings/paginated?next_token=`)
 
 #### `whoop_body_measurement_log` ⚠️ WRITE
-Add a reading: weight, plus body fat % or lean body mass kg. Given one of the two, the other is derived from weight (lean = weight × (1 − fat)); given both, they must agree within 0.5 kg.
+Add a reading: weight, plus body fat % or lean body mass kg, all metric. Given one of the two, the other is derived from weight (lean = weight × (1 − fat)); given both, they must agree within 0.5 kg. The timestamp is sent in the member's local offset, as the app does. The app keeps one reading per day; whether a second same-day POST replaces or adds is not verified.
 
 - **Input:** `{weight_kg: number, lean_body_mass_kg?: number, body_fat_percent?: number, timestamp?: string, confirm?}` (`timestamp` ISO-8601 with offset, default now)
 - **Source:** `POST /progression-service/v3/trends/WEIGHT/readings` with `{timestamp, weight_kg, body_fat_percent, lean_body_mass_kg}`

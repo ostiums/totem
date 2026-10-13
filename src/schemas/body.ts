@@ -12,7 +12,9 @@ export const BodyReading = z.object({
 
 export const BodyMeasurementsOut = z.object({
   readings: z.array(BodyReading),
+  next_token: z.string().nullable(),
 });
+export type BodyMeasurementsOutT = z.infer<typeof BodyMeasurementsOut>;
 
 export const BodyMeasurementLogOut = withPreview(z.object({
   logged: z.literal(true),

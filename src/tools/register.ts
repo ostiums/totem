@@ -17,7 +17,9 @@ import { registerTrend } from "./v2/trend.js";
 import { registerTrendPack } from "./v2/trend_pack.js";
 import { registerWeeklyPlan } from "./v2/weekly_plan.js";
 import { registerCompare } from "./v2/compare.js";
-import { registerBodyMeasurements, registerBodyMeasurementLog, registerBodyMeasurementDelete } from "./v2/body_measurement.js";
+import { registerBodyMeasurements } from "./v2/body_measurements.js";
+import { registerBodyMeasurementLog } from "./v2/body_measurement_log.js";
+import { registerBodyMeasurementDelete } from "./v2/body_measurement_delete.js";
 // Stress + sleep_need
 import { registerStress } from "./v2/stress.js";
 import { registerSleepNeed } from "./v2/sleep_need.js";
