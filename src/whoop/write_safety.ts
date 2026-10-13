@@ -1,5 +1,6 @@
-// Preview helper for write tools. Returns a structured "would-execute" payload
-// when confirm:false; the tool handler executes the actual call when confirm:true.
+// Result helpers for write tools: preview() returns a structured "would-execute"
+// payload when confirm:false (the handler runs the call when confirm:true), and
+// writeRejected() reports a WHOOP refusal without echoing its raw body.
 import { z } from "zod";
 import { apiErrorDetail, type WhoopApiError } from "./errors.js";
 import { jsonOut } from "./json_out.js";

@@ -25,6 +25,11 @@ describe("projectBodyMeasurements — /progression-service/v3/trends/WEIGHT/read
     expect(out.next_token).toBe("page-2");
   });
 
+  it("skips a reading without weight_details_screen.weight_kg rather than trusting content.weight's unit", () => {
+    const raw = { sections: { records: [{ measurements: [{ content: { id: "x", weight: 170, weight_details_screen: { timestamp: "2026-10-04T11:10:00.000+03:00" } } }] }] } };
+    expect(projectBodyMeasurements(raw).readings).toEqual([]);
+  });
+
   it("returns an empty list when the shape is absent", () => {
     expect(projectBodyMeasurements({})).toEqual({ readings: [], next_token: null });
     expect(projectBodyMeasurements(null)).toEqual({ readings: [], next_token: null });

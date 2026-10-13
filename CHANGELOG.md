@@ -4,6 +4,19 @@ All notable changes to this project. Format roughly follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Added
+
+- **Weight + body composition readings** — the readings behind Trends → Weight / Lean Body Mass, which the app's ADD MANUAL MEASUREMENT writes. Tool count 55 → **58**.
+  - `whoop_body_measurements` lists every reading (manual, Apple Health, Withings) with its id, weight kg, body fat %, lean body mass kg and source, plus `next_token` when WHOOP has older ones.
+  - `whoop_body_measurement_log` ⚠️ adds a reading: weight plus body fat % or lean body mass kg, the other derived from weight. The timestamp goes out in the member's local offset in the app's Joda form (`2026-10-13T09:30:00.000+0300`); body fat is sent as the fraction WHOOP stores.
+  - `whoop_body_measurement_delete` ⚠️ removes one reading by id.
+  - Path, verbs and body shape come from the Android app's `TrendsApi` (5.472.0): `POST|DELETE /progression-service/v3/trends/WEIGHT/readings[/{id}]`.
+
+### Changed
+
+- Writes to `progression-service` now invalidate only trend and profile reads instead of the whole read cache.
+- `activity_create` reports a WHOOP rejection through the shared `writeRejected` helper (same output).
+
 ## [1.5.1] — 2026-09-08
 
 ### Fixed

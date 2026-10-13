@@ -189,7 +189,8 @@ function writeInvalidationTags(path: string): readonly string[] {
   if (path.includes("profile-service") || path.includes("hr-zones") || path.includes("smart-alarm") || path.includes("hidden-metrics")) {
     return ["settings", "profile", "daily", "sleep_plan"];
   }
-  if (path.includes("progression-service")) return ["trend"];
+  // A weight reading may also move the profile weight WHOOP reports.
+  if (path.includes("progression-service")) return ["trend", "profile"];
   // whoop_raw can mutate any undocumented endpoint.
   return ["all"];
 }

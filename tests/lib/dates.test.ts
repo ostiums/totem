@@ -21,6 +21,10 @@ describe("jodaTimestamp", () => {
     expect(jodaTimestamp("2026-10-13T06:30:00Z")).toBe("2026-10-13T06:30:00.000+0000");
   });
 
+  it("accepts an hour-only offset", () => {
+    expect(jodaTimestamp("2026-10-13T09:30:00+03")).toBe("2026-10-13T09:30:00.000+0300");
+  });
+
   it("rejects a datetime without an offset", () => {
     expect(() => jodaTimestamp("2026-10-13T09:30:00")).toThrow("Invalid timestamp");
   });

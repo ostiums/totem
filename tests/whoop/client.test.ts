@@ -191,21 +191,23 @@ describe("WhoopClient", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
-  it("scopes a progression-service write to trend reads instead of flushing every cached GET", async () => {
+  it("scopes a progression-service write to trend and profile reads instead of flushing every cached GET", async () => {
     fetchMock.mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ ok: 1 }), { status: 200 })));
     const client = makeClient();
     const readings = "/progression-service/v3/trends/WEIGHT/readings";
     await client.get("/home-service/v1/home", { date: "2026-05-23" });
     await client.get(readings);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await client.get("/users-service/v2/bootstrap");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
 
     fetchMock.mockImplementationOnce(() => Promise.resolve(new Response(null, { status: 204 })));
     await client.post(readings, { weight_kg: 80 });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
 
     await client.get("/home-service/v1/home", { date: "2026-05-23" });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    await client.get(readings);
     expect(fetchMock).toHaveBeenCalledTimes(4);
+    await client.get(readings);
+    await client.get("/users-service/v2/bootstrap");
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 });

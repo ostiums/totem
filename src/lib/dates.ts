@@ -46,10 +46,10 @@ export function canonicalUtc(iso: string | number | Date): string {
  * the form the WHOOP app sends for manual trend readings. Wall clock and offset are kept as given.
  */
 export function jodaTimestamp(iso: string): string {
-  const m = iso.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}:?\d{2})$/);
+  const m = iso.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}(?::?\d{2})?)$/);
   if (!m) throw new Error(`Invalid timestamp "${iso}"; expected an ISO-8601 datetime with an offset.`);
   const [, dateHourMinute, sec = "00", frac = "", zone] = m;
   const ms = frac.padEnd(3, "0").slice(0, 3);
-  const offset = zone === "Z" ? "+0000" : zone!.replace(":", "");
+  const offset = zone === "Z" ? "+0000" : zone!.replace(":", "").padEnd(5, "0");
   return `${dateHourMinute}:${sec}.${ms}${offset}`;
 }
