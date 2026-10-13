@@ -1,6 +1,4 @@
-// Result helpers for write tools: preview() returns a structured "would-execute"
-// payload when confirm:false (the handler runs the call when confirm:true), and
-// writeRejected() reports a WHOOP refusal without echoing its raw body.
+// Result helpers for write tools.
 import { z } from "zod";
 import { apiErrorDetail, type WhoopApiError } from "./errors.js";
 import { jsonOut } from "./json_out.js";
@@ -16,6 +14,7 @@ export const WritePreviewSchema = z.object({
 });
 export type WritePreview = z.infer<typeof WritePreviewSchema>;
 
+/** Structured "would-execute" payload for confirm:false; the handler runs the call on confirm:true. */
 export function preview(
   method: string,
   path: string,

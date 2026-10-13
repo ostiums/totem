@@ -11,7 +11,7 @@ export interface MeasurementInput {
   lean_body_mass_kg?: number | undefined;
 }
 
-/** The app's ManualMeasurementRequestBody, snake_cased on the wire. */
+/** The app's ManualMeasurementRequestBody. */
 export interface MeasurementBody {
   timestamp: string;
   weight_kg: number;
